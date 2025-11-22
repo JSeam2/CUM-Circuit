@@ -1,0 +1,8 @@
+[package]
+name = "cum_circuit"
+type = "bin"
+authors = [""]
+compiler_version = "0.39.0"
+
+[dependencies]
+trees = { git = "https://github.com/privacy-scaling-explorations/zk-kit.noir", tag = "merkle-trees-v0.0.1", directory = "packages/merkle-trees" }

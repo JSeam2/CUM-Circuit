@@ -1,0 +1,9 @@
+fee = ""
+merkle_root = ""
+nullifier = ""
+nullifier_hash = ""
+path_elements = ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
+path_indices = ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
+recipient = ""
+relayer = ""
+secret = ""
