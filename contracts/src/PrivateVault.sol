@@ -180,6 +180,14 @@ abstract contract PrivateVault {
     }
 
     /**
+     * @notice get denomination of a given token in a vault
+     */
+    function getDenomination(address token) public view returns (uint256) {
+        Vault storage vault = vaults[token];
+        return vault.denomination;
+    }
+
+    /**
      * @notice Check if a nullifier has been spent
      * @param token The token address
      * @param nullifierHash The nullifier hash to check
