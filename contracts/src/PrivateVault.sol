@@ -24,6 +24,8 @@ abstract contract PrivateVault {
         // Merkle tree storage: level => index => hash
         mapping(uint256 => mapping(uint256 => bytes32)) tree;
         uint256 treeDepth;
+        uint256 depositCount;
+        uint256 withdrawalCount;
     }
 
     mapping(address => Vault) public vaults;
@@ -113,6 +115,9 @@ abstract contract PrivateVault {
         // Update the Merkle root
         _updateRoot(vault, newRoot);
 
+        // Increment deposit counter
+        ++vault.depositCount;
+
         emit PrivateDeposit(commitment, oldRoot, newRoot, leafIndex);
     }
 
@@ -160,6 +165,9 @@ abstract contract PrivateVault {
 
         // Mark nullifier as spent
         vault.nullifierUsed[nullifierHash] = true;
+
+        // Increment withdrawal counter
+        ++vault.withdrawalCount;
 
         emit PrivateWithdrawal(nullifierHash, recipient, merkleRoot);
     }
@@ -226,7 +234,7 @@ abstract contract PrivateVault {
      * @notice Helper for Merkle Logic. Get the current Merkle root for a given token
      * @param token The token address
      */
-    function getCurrentRoot(address token) external view returns (bytes32) {
+    function getCurrentRoot(address token) public view returns (bytes32) {
         Vault storage vault = vaults[token];
         return vault.currentRoot;
     }
@@ -235,7 +243,7 @@ abstract contract PrivateVault {
      * @notice Helper for Merkle Logic. Get the current leaf index
      * @param token The token address
      */
-    function getCurrentLeafIndex(address token) external view returns (uint256) {
+    function getCurrentLeafIndex(address token) public view returns (uint256) {
         Vault storage vault = vaults[token];
         return vault.currentLeafIndex;
     }
@@ -244,10 +252,38 @@ abstract contract PrivateVault {
      * @notice Helper for Merkle Logic. Get the number of stored roots
      * @param token The token address
      */
-    function getRootHistoryLength(address token) external view returns (uint256) {
+    function getRootHistoryLength(address token) public view returns (uint256) {
         Vault storage vault = vaults[token];
         return vault.rootHistory.length;
     }
+
+    /**
+     * @notice Get the total number of deposits for a given token
+     * @param token The token address
+     */
+    function getDepositCount(address token) public view returns (uint256) {
+        Vault storage vault = vaults[token];
+        return vault.depositCount;
+    }
+
+    /**
+     * @notice Get the total number of withdrawals for a given token
+     * @param token The token address
+     */
+    function getWithdrawalCount(address token) public view returns (uint256) {
+        Vault storage vault = vaults[token];
+        return vault.withdrawalCount;
+    }
+
+    /**
+     * @notice Get active deposit count for a given token
+     * @param token The token address
+     */
+    function getActiveDepositCount(address token) public view returns (uint256) {
+        Vault storage vault = vaults[token];
+        return vault.depositCount - vault.withdrawalCount;
+    }
+
 
     /**
      * @notice Compute new Merkle root by inserting a leaf at the current leaf index
