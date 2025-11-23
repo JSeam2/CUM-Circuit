@@ -1,5 +1,4 @@
-use dep::std;
-use std::hash::poseidon::bn254::hash_2;
+use dep::poseidon::{poseidon};
 
 // Merkle tree depth (must match PrivateVault.sol)
 global TREE_DEPTH: u32 = 20;
@@ -45,13 +44,13 @@ fn main(
 // Compute commitment from secret and nullifier using Poseidon hash
 // Note: We use Poseidon with 2 inputs to match Poseidon.sol's hash function
 fn compute_commitment(secret: Field, nullifier: Field) -> Field {
-    hash_2([secret, nullifier])
+    poseidon::bn254::hash_2([secret, nullifier])
 }
 
 // Compute nullifier hash using Poseidon hash
 // Note: For single input, we pad with zero to maintain 2-input structure
 fn compute_nullifier_hash(nullifier: Field) -> Field {
-    hash_2([nullifier, 0])
+    poseidon::bn254::hash_2([nullifier, 0])
 }
 
 // Compute Merkle root from leaf and path
@@ -74,7 +73,7 @@ fn compute_merkle_root(
         };
 
         // Hash the pair using Poseidon (2 inputs)
-        current_hash = hash_2([left, right]);
+        current_hash = poseidon::bn254::hash_2([left, right]);
     }
 
     current_hash
@@ -131,18 +130,18 @@ fn test_poseidon_compatibility() {
     // These values must match to ensure compatibility between circuits and contracts
 
     // Test 1: hash([1, 2]) should equal 0x115cc0f5e7d690413df64c6b9662e9cf2a3617f2743245519e19607a4417189a
-    let result1 = hash_2([1, 2]);
+    let result1 = poseidon::bn254::hash_2([1, 2]);
     let expected1 = 0x115cc0f5e7d690413df64c6b9662e9cf2a3617f2743245519e19607a4417189a;
     assert(result1 == expected1, "Poseidon hash([1, 2]) does not match Solidity");
 
     // Test 2: hash([123, 456])
-    let result2 = hash_2([123, 456]);
+    let result2 = poseidon::bn254::hash_2([123, 456]);
     // Expected from Solidity PoseidonT3: 0x2b60bf8caa91452f000be587c441f6495f36def6fc4c36f5cc7b5d673f59fd0f
     let expected2 = 0x2b60bf8caa91452f000be587c441f6495f36def6fc4c36f5cc7b5d673f59fd0f;
     assert(result2 == expected2, "Poseidon hash([123, 456]) does not match Solidity");
 
     // Test 3: Commitment test hash([11111111, 22222222])
-    let result3 = hash_2([11111111, 22222222]);
+    let result3 = poseidon::bn254::hash_2([11111111, 22222222]);
     let expected3 = 0x027d41a203035596e96fda110d73edf92d17ca4c60b28bf72b0f2bc593f226eb;
     assert(result3 == expected3, "Commitment hash does not match Solidity");
 }
@@ -154,7 +153,7 @@ fn test_empty_tree_root() {
     let mut current_hash = 0;
 
     for _ in 0..TREE_DEPTH {
-        current_hash = hash_2([current_hash, current_hash]);
+        current_hash = poseidon::bn254::hash_2([current_hash, current_hash]);
     }
 
     // Expected from Solidity: 0x2134e76ac5d21aab186c2be1dd8f84ee880a1e46eaf712f9d371b6df22191f3e

@@ -1,0 +1,5 @@
+{
+	"dependencies": {
+		"@aztec/bb.js": "3.0.0-nightly.20251030-2"
+	}
+}

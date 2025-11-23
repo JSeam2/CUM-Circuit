@@ -1,9 +1,12 @@
-fee = ""
-merkle_root = ""
-nullifier = ""
-nullifier_hash = ""
-path_elements = ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
-path_indices = ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
-recipient = ""
-relayer = ""
-secret = ""
+# Private inputs (kept secret)
+secret = "0x0a98ac7"
+nullifier = "0x0153158e"
+path_indices = ["0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"]
+path_elements = ["0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"]
+
+# Public inputs (visible to everyone)
+merkle_root = "0x11e9f7f14277f0e660ab3721d67ae3341f351b9fc8a9f10a0bc76b74835d1c6f"
+nullifier_hash = "0x08f38ef6f469742cf38723ea167d6a503a669fc7c2ade5bc3f69cbb93877c770"
+recipient = "0x1234567890"
+relayer = "0x0"
+fee = "0x0"

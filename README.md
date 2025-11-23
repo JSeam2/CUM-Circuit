@@ -35,6 +35,22 @@ This circuit enables:
 
 ## Usage
 
+### Installation
+1. Install noirup and use the following version
+```bash
+noirup --version 1.0.0-beta.14
+```
+
+2. Install bbup and use the following version
+```bash
+bbup --version 3.0.0-nightly.20251030-2
+```
+
+3. Install bb.js
+```bash
+pnpm install
+```
+
 ### Testing the Circuit
 
 ```bash
@@ -58,64 +74,122 @@ Noir uses Barretenberg as its proving backend. To generate a Solidity verifier:
 nargo compile
 
 # Step 2: Generate the Solidity verifier using bb
-bb write_vk -b ./target/cum_circuit.json
-bb contract
-
-# This generates UltraVerifier.sol which can be deployed to Ethereum
+bb write_vk -b ./target/cum_circuit.json -o ./target --oracle_hash keccak
+bb write_solidity_verifier -k ./target/vk -o ./target/Verifier.sol
 ```
 
-Alternatively, if you have `@noir-lang/backend_barretenberg` installed:
+### Quick Start: Helper Scripts
+
+We provide helper scripts to streamline the workflow:
+
+#### Option 1: Complete Workflow Helper
 
 ```bash
-# Generate proof
-nargo prove
-
-# Generate Solidity verifier (legacy method)
-bb write_vk -b ./target/cum_circuit.json
-bb contract -o ./contracts/
+# Interactive workflow for the complete process
+./workflow.sh full-workflow
 ```
 
-### Creating Commitments and Proofs
+This guides you through:
+1. Generating commitment
+2. Depositing to vault
+3. Preparing proof inputs
+4. Generating proof
+
+#### Option 2: Individual Commands
+
+**Generate Commitment:**
+```bash
+cd ./contracts
+
+# Generate with random values
+forge script script/GenerateCommitment.s.sol:GenerateCommitment -s "run()"
+
+# Generate with specific values
+forge script script/GenerateCommitment.s.sol:GenerateCommitment -s "run(uint256,uint256)" 11111111 22222222
+```
+
+**Prepare Prover.toml:**
+You may also populate Prover.toml directly
+```bash
+# Interactive helper
+./workflow.sh prepare-proof
+```
+
+**Generate Proof:**
+```bash
+# Generate proof from Prover.toml
+./workflow.sh prove
+
+# Or use the script directly
+./generate_proof.sh
+```
+
+### Manual Process: Creating Commitments and Proofs
+
+If you prefer to do things manually:
 
 #### 1. Generate a Commitment (for deposit)
 
+Use the forge script to generate commitments:
+
 ```bash
-cd scripts
-npm install
-node generate_commitment.js generate
+cd contracts
+forge script script/GenerateCommitment.s.sol:GenerateCommitment -s "run()"
 ```
 
 This will output:
-- `nullifier`: Keep this private!
-- `secret`: Keep this private!
+- `secret`: Keep this PRIVATE!
+- `nullifier`: Keep this PRIVATE!
 - `commitment`: Submit this to the contract's deposit function
+- `nullifier_hash`: Used later for withdrawal proof
 
 #### 2. Create Prover.toml
 
 Create `Prover.toml` with your private inputs:
 
 ```toml
-nullifier = "0x123..."
-secret = "0x456..."
-merkle_path = ["0x0", "0x0", ...] # 20 values
-path_indices = [0, 0, ...] # 20 values (0 or 1)
-merkle_root = "0x789..."
-nullifier_hash = "0xabc..."
-recipient = "0xdef..."
+# Private inputs (kept secret)
+secret = "0xa98ac7"
+nullifier = "0x153158e"
+path_indices = ["0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"]
+path_elements = ["0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"]
+
+# Public inputs (visible to everyone)
+merkle_root = "0x11e9f7f14277f0e660ab3721d67ae3341f351b9fc8a9f10a0bc76b74835d1c6f"
+nullifier_hash = "0x08f38ef6f469742cf38723ea167d6a503a669fc7c2ade5bc3f69cbb93877c770"
+recipient = "0x1234567890"
+relayer = "0x0"
+fee = "0x0"
 ```
+
+**Notes:**
+- For a commitment at index 0 in the tree, use all zeros for `path_indices` and `path_elements`
+- `merkle_root` should be obtained from the vault contract after depositing
+- `nullifier_hash` can be computed using the forge script or from the circuit
 
 #### 3. Generate the Proof
 
 ```bash
-nargo prove
-```
+# Compile circuit
+nargo compile
 
-This creates `proofs/cum_circuit.proof` which can be submitted to the contract.
+# Execute witness
+nargo execute witness
+
+# Generate proof with bb
+bb prove -b ./target/cum_circuit.json -w ./target/witness.gz -o ./target --oracle_hash keccak
+
+# Convert to hex
+xxd -p ./target/proof | tr -d '\n' > proof.hex
+
+# Or use bb.js (generates human-readable output)
+node prove.js
+```
 
 #### 4. Verify the Proof (optional, for testing)
 
 ```bash
-nargo verify
+bb verify -p ./target/proof -k ./target/vk --oracle_hash keccak
 ```
 
 ## Integration with Ethereum
@@ -139,67 +213,6 @@ nargo verify
    - Nullifier hash hasn't been used before
 6. Contract marks nullifier_hash as spent and sends funds to recipient
 
-## Smart Contracts
-
-This repository includes abstract base contracts for implementing private vaults:
-
-### PrivateVaultBasePoseidon2.sol
-
-Abstract contract providing private deposit/withdrawal functionality using Poseidon2:
-- `_privateDeposit(bytes32 commitment)`: Internal function to add commitments to Merkle tree
-- `_privateWithdraw(proof, merkleRoot, nullifierHash, recipient)`: Internal function to verify proofs and mark nullifiers as spent
-- Extends `Poseidon2MerkleTree` for incremental Merkle tree with 31-level depth
-- Uses Poseidon2 hash to match Noir circuit exactly
-- Tracks spent nullifiers to prevent double spends
-- Maintains root history for allowing recent roots
-
-### Poseidon2.sol
-
-**IMPORTANT**: This is a placeholder library. You must replace it with actual Poseidon2 implementation:
-
-**Option 1 - Generate from Noir (Recommended)**:
-```bash
-cd scripts
-npm install
-node generate_poseidon2.js
-```
-This generates test vectors from Barretenberg. Then implement Poseidon2.sol to match these test vectors.
-
-**Option 2 - Use existing library**:
-Use a verified Poseidon2 Solidity library that matches Noir's parameters (BN254, rate=2).
-
-### ExamplePrivateVault.sol
-
-Example implementation showing how to use `PrivateVaultBase`:
-- Public `deposit()` function for ETH deposits
-- Public `withdraw()` function for ETH withdrawals
-- Extends the base contract with your custom logic
-
-### Usage
-
-Extend `PrivateVaultBase` for your own vault implementations, make sure to include nonReentrant guard to prevent reentracy attacks.
-
-```solidity
-contract MyVault is PrivateVaultBase, ReentrancyGuard {
-    constructor(address _verifier) PrivateVaultBase(_verifier) {}
-
-    function deposit(bytes32 commitment) external payable nonReentrant {
-        // Your custom deposit logic
-        _privateDeposit(commitment);
-    }
-
-    function withdraw(
-        bytes calldata proof,
-        bytes32 nullifierHash,
-        address payable recipient,
-        bytes32 rootToProve
-    ) external nonReentrant {
-        _privateWithdraw(proof, nullifierHash, recipient, rootToProve);
-        // Your custom withdrawal logic
-    }
-}
-```
-
 ## Security Considerations
 
 - **Merkle Tree Depth**: Set to 31 levels (supports up to 2^31 = ~2 billion deposits)
@@ -210,35 +223,3 @@ contract MyVault is PrivateVaultBase, ReentrancyGuard {
   - Generate test vectors using `scripts/generate_poseidon2.js`
   - Verify Solidity implementation matches test vectors before deployment
   - Mismatched hash implementations will cause all withdrawals to fail
-
-## File Structure
-
-- `src/main.nr`: Main Noir circuit implementation
-- `Nargo.toml`: Noir project configuration
-- `Prover.toml`: Input values for proof generation (create this)
-- `contracts/src/`:
-  - `PrivateVaultBasePoseidon2.sol`: Abstract base contract using Poseidon2
-  - `Poseidon2MerkleTree.sol`: Incremental Merkle tree with Poseidon2
-  - `Poseidon2.sol`: Poseidon2 hash library (needs implementation)
-  - `ExamplePrivateVault.sol`: Example vault implementation
-  - `UltraVerifier.sol`: Generated Solidity verifier (after running bb)
-- `scripts/`:
-  - `generate_commitment.js`: Utility to generate commitments using Poseidon2
-  - `generate_poseidon2.js`: Generate Poseidon2 test vectors
-  - `package.json`: Node.js dependencies
-- `target/`: Compiled circuit artifacts
-
-## Circuit Parameters
-
-- Tree Depth: 31 levels (~2 billion deposits)
-- Hash Function: Poseidon2 (efficient in ZK circuits, matches Solidity implementation)
-- Field: BN254 curve (Ethereum-compatible)
-
-## Next Steps
-
-1. Run `nargo test` to verify circuit logic
-2. Run `nargo codegen-verifier` to generate Solidity verifier
-3. Deploy verifier contract to Ethereum
-4. Build vault contract that uses the verifier
-5. Create frontend for deposit/withdrawal UX
-# CUM-Circuit

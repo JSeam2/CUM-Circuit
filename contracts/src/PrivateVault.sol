@@ -2,10 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {PoseidonT3} from "./Poseidon.sol";
-
-interface IWithdrawalVerifier {
-    function verify(bytes calldata _proof, uint256[] calldata _publicInputs) external view returns (bool);
-}
+import {IVerifier} from "./WithdrawalVerifier.sol";
 
 /**
  * @title PrivateVault
@@ -14,7 +11,7 @@ interface IWithdrawalVerifier {
  */
 abstract contract PrivateVault {
     // Verifier contract for withdrawals
-    IWithdrawalVerifier public immutable withdrawalVerifier;
+    IVerifier public immutable withdrawalVerifier;
 
     // Root history to allow for multiple claims
     uint256 public immutable ROOT_HISTORY_SIZE = 30;
@@ -24,7 +21,7 @@ abstract contract PrivateVault {
         uint256 denomination;
         bytes32 currentRoot;
         bytes32[] rootHistory;
-        mapping(bytes32 => bool) nullifierSpent;
+        mapping(bytes32 => bool) nullifierUsed;
         mapping(bytes32 => bool) commitmentUsed;
         mapping(bytes32 => bool) knownRoots;
         // Merkle tree storage: level => index => hash
@@ -54,7 +51,7 @@ abstract contract PrivateVault {
     error InvalidWithdrawalVerifier();
     error InvalidCommitment();
     error CommitmentAlreadyUsed();
-    error NullifierSpent();
+    error NullifierAlreadyUsed();
     error InvalidWithdrawalProof();
     error InvalidRecipient();
     error InvalidRoot();
@@ -69,7 +66,7 @@ abstract contract PrivateVault {
     ) {
         if (_withdrawalVerifier == address(0)) revert InvalidWithdrawalVerifier();
 
-        withdrawalVerifier = IWithdrawalVerifier(_withdrawalVerifier);
+        withdrawalVerifier = IVerifier(_withdrawalVerifier);
 
         // Populate vaults
         uint256 tokenAddressLen = _tokenAddresses.length;
@@ -100,7 +97,7 @@ abstract contract PrivateVault {
      * NOTE: Fund transfer mechanisms should be implemented in the derived contract
      * You will need to handle the fixed denominations.
      * @param token The token address being deposited. address(0) for ETH
-     * @param commitment The commitment being inserted
+     * @param commitment The commitment being inserted hash(nullifier, secret)
      */
     function _privateDeposit(
         address token,
@@ -151,22 +148,22 @@ abstract contract PrivateVault {
         uint256 fee
     ) internal {
         Vault storage vault = vaults[token];
-        if (vault.nullifierSpent[nullifierHash]) revert NullifierSpent();
+        if (vault.nullifierUsed[nullifierHash]) revert NullifierAlreadyUsed();
         if (!vault.knownRoots[merkleRoot]) revert InvalidRoot();
 
         // Verify the withdrawal proof
         // Public inputs: (merkle_root, nullifier_hash, recipient)
-        uint256[] memory publicInputs = new uint256[](5);
-        publicInputs[0] = uint256(merkleRoot);
-        publicInputs[1] = uint256(nullifierHash);
-        publicInputs[2] = uint256(uint160(recipient));
-        publicInputs[3] = uint256(uint160(relayer));
-        publicInputs[4] = fee;
+        bytes32[] memory publicInputs = new bytes32[](5);
+        publicInputs[0] = merkleRoot;
+        publicInputs[1] = nullifierHash;
+        publicInputs[2] = bytes32(uint256(uint160(recipient)));
+        publicInputs[3] = bytes32(uint256(uint160(relayer)));
+        publicInputs[4] = bytes32(fee);
 
         if(!withdrawalVerifier.verify(proof, publicInputs)) revert InvalidWithdrawalProof();
 
         // Mark nullifier as spent
-        vault.nullifierSpent[nullifierHash] = true;
+        vault.nullifierUsed[nullifierHash] = true;
 
         emit PrivateWithdrawal(nullifierHash, recipient, merkleRoot);
     }
@@ -187,9 +184,9 @@ abstract contract PrivateVault {
      * @param token The token address
      * @param nullifierHash The nullifier hash to check
      */
-    function isNullifierSpent(address token, bytes32 nullifierHash) public view returns (bool) {
+    function isNullifierUsed(address token, bytes32 nullifierHash) public view returns (bool) {
         Vault storage vault = vaults[token];
-        return vault.nullifierSpent[nullifierHash];
+        return vault.nullifierUsed[nullifierHash];
     }
 
     /**
