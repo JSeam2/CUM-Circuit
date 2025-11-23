@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the implementation of the withdrawal circuit for the PrivateVault system using Noir and Poseidon hash functions.
+This document describes the implementation of the withdrawal circuit for the PrivateVault system using Noir and Poseidon hash functions. This is a port of Tornado Cash V1 into Noir and Poseidon hashing scheme.
 
 ## Architecture
 
@@ -41,7 +41,7 @@ This document describes the implementation of the withdrawal circuit for the Pri
 Commitments are computed using Poseidon hash with 2 inputs:
 
 ```noir
-commitment = Poseidon2([secret, nullifier])
+commitment = Poseidon([secret, nullifier])
 ```
 
 **Why this matters:**
@@ -54,7 +54,7 @@ commitment = Poseidon2([secret, nullifier])
 The nullifier hash prevents double-spending:
 
 ```noir
-nullifier_hash = Poseidon1([nullifier])
+nullifier_hash = Poseidon([nullifier, zero])
 ```
 
 **Why this matters:**
@@ -86,7 +86,6 @@ assert(current_hash == merkle_root)
 
 ### Noir Implementation
 - Uses `std::hash::poseidon::bn254::hash_2` for 2-input hashing
-- Uses `std::hash::poseidon::bn254::hash_1` for 1-input hashing
 - BN254 curve compatible with Ethereum
 
 ### Solidity Implementation
@@ -194,3 +193,4 @@ nargo test test_poseidon_compatibility
 - [Noir Documentation](https://noir-lang.org/)
 - [Circomlibjs](https://github.com/iden3/circomlibjs)
 - [Tornado Cash Circuits](https://github.com/tornadocash/tornado-core)
+- [Chance Hudson's Poseidon Solidity Implementation](https://github.com/chancehudson/poseidon-solidity)
