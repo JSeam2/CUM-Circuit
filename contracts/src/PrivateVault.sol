@@ -10,9 +10,6 @@ import {IVerifier} from "./WithdrawalVerifier.sol";
  * @dev On-chain Merkle tree computation - deposits compute root on-chain, withdrawals verified with ZK proofs
  */
 abstract contract PrivateVault {
-    // Verifier contract for withdrawals
-    IVerifier public immutable withdrawalVerifier;
-
     // Root history to allow for multiple claims
     uint256 public immutable ROOT_HISTORY_SIZE = 30;
 
@@ -58,16 +55,11 @@ abstract contract PrivateVault {
     error InvalidLeafIndex();
 
     constructor(
-        address _withdrawalVerifier,
         uint256 _treeDepth,
         bytes32[] memory _initialRoots,
         address[] memory _tokenAddresses,
         uint256[] memory _denominations
     ) {
-        if (_withdrawalVerifier == address(0)) revert InvalidWithdrawalVerifier();
-
-        withdrawalVerifier = IVerifier(_withdrawalVerifier);
-
         // Populate vaults
         uint256 tokenAddressLen = _tokenAddresses.length;
         for (uint256 i = 0; i < tokenAddressLen; ) {
@@ -130,6 +122,7 @@ abstract contract PrivateVault {
      * NOTE: Fund transfer mechanisms should be implemented in the derived contract.
      * You will need to handle the fixed denominations.
      * @dev Verifies ZK proof of commitment inclusion
+     * @param withdrawalVerifier The verifier contract to use for proof verification
      * @param proof ZK proof from Noir withdrawal circuit
      * @param token The token address being deposited. address(0) for ETH
      * @param merkleRoot The Merkle root being proven against
@@ -139,6 +132,7 @@ abstract contract PrivateVault {
      * @param fee Fee amount to pay the relayer
      */
     function _privateWithdraw(
+        IVerifier withdrawalVerifier,
         bytes calldata proof,
         address token,
         bytes32 merkleRoot,
@@ -147,6 +141,8 @@ abstract contract PrivateVault {
         address relayer,
         uint256 fee
     ) internal {
+        if (address(withdrawalVerifier) == address(0)) revert InvalidWithdrawalVerifier();
+
         Vault storage vault = vaults[token];
         if (vault.nullifierUsed[nullifierHash]) revert NullifierAlreadyUsed();
         if (!vault.knownRoots[merkleRoot]) revert InvalidRoot();

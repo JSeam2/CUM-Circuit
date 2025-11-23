@@ -21,6 +21,8 @@ contract MockWithdrawalVerifier is IVerifier {
 
 // Concrete implementation of PrivateVault for testing
 contract TestPrivateVault is PrivateVault {
+    IVerifier public withdrawalVerifier;
+
     constructor(
         address _withdrawalVerifier,
         uint256 _treeDepth,
@@ -28,12 +30,13 @@ contract TestPrivateVault is PrivateVault {
         address[] memory _tokenAddresses,
         uint256[] memory _denominations
     ) PrivateVault(
-        _withdrawalVerifier,
         _treeDepth,
         _initialRoots,
         _tokenAddresses,
         _denominations
-    ) {}
+    ) {
+        withdrawalVerifier = IVerifier(_withdrawalVerifier);
+    }
 
     // Expose internal function for testing
     function privateDeposit(address token, bytes32 commitment) external {
@@ -50,7 +53,7 @@ contract TestPrivateVault is PrivateVault {
         address relayer,
         uint256 fee
     ) external {
-        _privateWithdraw(proof, token, merkleRoot, nullifierHash, recipient, relayer, fee);
+        _privateWithdraw(withdrawalVerifier, proof, token, merkleRoot, nullifierHash, recipient, relayer, fee);
     }
 }
 
