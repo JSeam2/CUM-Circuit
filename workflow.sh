@@ -27,7 +27,11 @@ function show_help() {
     echo "    If secret/nullifier not provided, generates random values"
     echo ""
     echo "  ${GREEN}prepare-proof${NC}"
-    echo "    Interactive helper to prepare Prover.toml file"
+    echo "    Interactive helper to prepare Prover.toml file (manual)"
+    echo ""
+    echo "  ${GREEN}prepare-proof-auto${NC}"
+    echo "    Automatic Prover.toml creation - fetches Merkle path from deployed vault"
+    echo "    Works with Base, Ethereum, or any EVM chain"
     echo ""
     echo "  ${GREEN}prove${NC}"
     echo "    Generate ZK proof from Prover.toml"
@@ -39,6 +43,7 @@ function show_help() {
     echo "  ./workflow.sh generate-commitment"
     echo "  ./workflow.sh generate-commitment 11111111 22222222"
     echo "  ./workflow.sh prepare-proof"
+    echo "  ./workflow.sh prepare-proof-auto"
     echo "  ./workflow.sh prove"
 }
 
@@ -100,6 +105,84 @@ path_elements = ${PATH_ELEMENTS}
 # Public inputs (visible to everyone)
 merkle_root = "${MERKLE_ROOT}"
 nullifier_hash = "${NULLIFIER_HASH}"
+recipient = "${RECIPIENT}"
+relayer = "${RELAYER}"
+fee = "${FEE}"
+EOF
+
+    echo ""
+    echo -e "${GREEN}Prover.toml created successfully!${NC}"
+    echo ""
+    echo "Contents:"
+    cat Prover.toml
+}
+
+function prepare_proof_auto() {
+    echo -e "${CYAN}=== Preparing Prover.toml (Auto-fetch Merkle Path) ===${NC}"
+    echo ""
+    echo "This helper will automatically fetch the Merkle path from your deployed vault."
+    echo ""
+
+    # Ask for inputs
+    read -p "Enter vault contract address: " VAULT_ADDRESS
+    read -p "Enter token address (0x0 for ETH): " TOKEN_ADDRESS
+    read -p "Enter RPC URL (e.g., https://mainnet.base.org): " RPC_URL
+    echo ""
+    read -p "Enter secret (decimal, e.g., 11111111): " SECRET
+    read -p "Enter nullifier (decimal, e.g., 22222222): " NULLIFIER
+    read -p "Enter leaf index (from deposit event): " LEAF_INDEX
+    echo ""
+    read -p "Enter recipient address (hex): " RECIPIENT
+    read -p "Enter relayer address (hex, or 0x0 for none): " RELAYER
+    read -p "Enter fee (hex, or 0x0 for none): " FEE
+
+    # Compute commitment and nullifier hash
+    echo ""
+    echo -e "${YELLOW}Computing commitment and nullifier hash...${NC}"
+    cd contracts
+    COMPUTED=$(forge script script/GenerateCommitment.s.sol:GenerateCommitment -s "run(uint256,uint256)" "$SECRET" "$NULLIFIER" --silent 2>&1)
+
+    # Extract hex values for Prover.toml
+    SECRET_HEX=$(echo "$COMPUTED" | grep 'secret = "0x' | sed 's/.*secret = "0x\([^"]*\)".*/\1/')
+    NULLIFIER_HEX=$(echo "$COMPUTED" | grep 'nullifier = "0x' | sed 's/.*nullifier = "0x\([^"]*\)".*/\1/')
+    NULLIFIER_HASH=$(echo "$COMPUTED" | grep 'nullifier_hash = "0x' | sed 's/.*nullifier_hash = "0x\([^"]*\)".*/\1/')
+
+    cd ..
+
+    # Fetch Merkle path from contract
+    echo ""
+    echo -e "${YELLOW}Fetching Merkle path from vault contract...${NC}"
+
+    # Check if ethers is installed
+    if ! pnpm list ethers &> /dev/null; then
+        echo -e "${YELLOW}Installing ethers.js...${NC}"
+        pnpm install
+    fi
+
+    PATH_OUTPUT=$(node fetch_merkle_path.js "$VAULT_ADDRESS" "$TOKEN_ADDRESS" "$LEAF_INDEX" "$RPC_URL" 2>&1)
+
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Error: Failed to fetch Merkle path${NC}"
+        echo "$PATH_OUTPUT"
+        exit 1
+    fi
+
+    # Extract merkle_root, path_indices, and path_elements
+    MERKLE_ROOT=$(echo "$PATH_OUTPUT" | grep 'merkle_root = "0x' | sed 's/.*merkle_root = "\(0x[^"]*\)".*/\1/')
+    PATH_INDICES=$(echo "$PATH_OUTPUT" | sed -n '/path_indices = \[/,/\]/p' | tr -d '\n')
+    PATH_ELEMENTS=$(echo "$PATH_OUTPUT" | sed -n '/path_elements = \[/,/\]/p' | tr -d '\n')
+
+    # Create Prover.toml
+    cat > Prover.toml << EOF
+# Private inputs (kept secret)
+secret = "0x${SECRET_HEX}"
+nullifier = "0x${NULLIFIER_HEX}"
+${PATH_INDICES}
+${PATH_ELEMENTS}
+
+# Public inputs (visible to everyone)
+merkle_root = "${MERKLE_ROOT}"
+nullifier_hash = "0x${NULLIFIER_HASH}"
 recipient = "${RECIPIENT}"
 relayer = "${RELAYER}"
 fee = "${FEE}"
@@ -179,6 +262,9 @@ case $COMMAND in
         ;;
     prepare-proof)
         prepare_proof
+        ;;
+    prepare-proof-auto)
+        prepare_proof_auto
         ;;
     prove)
         prove

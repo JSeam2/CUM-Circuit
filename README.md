@@ -109,10 +109,34 @@ forge script script/GenerateCommitment.s.sol:GenerateCommitment -s "run(uint256,
 ```
 
 **Prepare Prover.toml:**
-You may also populate Prover.toml directly
+
+Option A: Automatic (Recommended for deployed vaults)
 ```bash
-# Interactive helper
+# Automatically fetch Merkle path from deployed contract
+./workflow.sh prepare-proof-auto
+
+# This will prompt for:
+# - Vault contract address
+# - Token address
+# - RPC URL (e.g., https://mainnet.base.org)
+# - Your secret and nullifier
+# - Leaf index (from your deposit event)
+# - Recipient address
+```
+
+Option B: Manual
+```bash
+# Interactive helper for manual entry
 ./workflow.sh prepare-proof
+```
+
+You may also populate Prover.toml directly or use the standalone script:
+```bash
+# Direct script usage
+node fetch_merkle_path.js <VAULT_ADDRESS> <TOKEN_ADDRESS> <LEAF_INDEX> <RPC_URL>
+
+# Example for Base mainnet
+node fetch_merkle_path.js 0x1234... 0x0 5 https://mainnet.base.org
 ```
 
 **Generate Proof:**
@@ -191,6 +215,41 @@ node prove.js
 ```bash
 bb verify -p ./target/proof -k ./target/vk --oracle_hash keccak
 ```
+
+## Getting Merkle Paths
+
+### For Deployed Contracts
+
+The PrivateVault contract includes helper functions to query Merkle paths:
+
+```solidity
+// Get the Merkle path for a specific leaf
+function getMerklePath(address token, uint256 leafIndex)
+    public view returns (uint256[] memory pathIndices, bytes32[] memory pathElements)
+
+// Get a specific tree node
+function getTreeNode(address token, uint256 level, uint256 index)
+    public view returns (bytes32)
+
+// Get the tree depth
+function getTreeDepth(address token) public view returns (uint256)
+```
+
+**Important**: If your deployed vault doesn't have these functions, you'll need to upgrade the contract or manually construct the Merkle path.
+
+### Using the Fetch Script
+
+The `fetch_merkle_path.js` script queries these functions via RPC and formats the output for Prover.toml:
+
+```bash
+node fetch_merkle_path.js <VAULT_ADDRESS> <TOKEN_ADDRESS> <LEAF_INDEX> <RPC_URL>
+```
+
+This works with any EVM-compatible chain:
+- Base: `https://mainnet.base.org`
+- Base Sepolia: `https://sepolia.base.org`
+- Ethereum: `https://eth.llamarpc.com`
+- Local Anvil: `http://localhost:8545`
 
 ## Integration with Ethereum
 

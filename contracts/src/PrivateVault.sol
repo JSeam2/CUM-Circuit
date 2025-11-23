@@ -275,6 +275,66 @@ abstract contract PrivateVault {
         return vault.depositCount - vault.withdrawalCount;
     }
 
+    /**
+     * @notice Get a node from the Merkle tree
+     * @param token The token address
+     * @param level The level in the tree (0 = leaves)
+     * @param index The index at that level
+     * @return The hash value at that position
+     */
+    function getTreeNode(address token, uint256 level, uint256 index) public view returns (bytes32) {
+        Vault storage vault = vaults[token];
+        return vault.tree[level][index];
+    }
+
+    /**
+     * @notice Get the tree depth for a token's vault
+     * @param token The token address
+     */
+    function getTreeDepth(address token) public view returns (uint256) {
+        Vault storage vault = vaults[token];
+        return vault.treeDepth;
+    }
+
+    /**
+     * @notice Get the Merkle path for a given leaf index
+     * @param token The token address
+     * @param leafIndex The index of the leaf
+     * @return pathIndices Array of 0s (left) and 1s (right) indicating the path
+     * @return pathElements Array of sibling hashes along the path
+     */
+    function getMerklePath(
+        address token,
+        uint256 leafIndex
+    ) public view returns (uint256[] memory pathIndices, bytes32[] memory pathElements) {
+        Vault storage vault = vaults[token];
+        uint256 depth = vault.treeDepth;
+
+        pathIndices = new uint256[](depth);
+        pathElements = new bytes32[](depth);
+
+        uint256 currentIndex = leafIndex;
+
+        for (uint256 level = 0; level < depth; level++) {
+            uint256 siblingIndex;
+
+            if (currentIndex % 2 == 0) {
+                // Current is left child, sibling is right
+                pathIndices[level] = 0;
+                siblingIndex = currentIndex + 1;
+            } else {
+                // Current is right child, sibling is left
+                pathIndices[level] = 1;
+                siblingIndex = currentIndex - 1;
+            }
+
+            pathElements[level] = vault.tree[level][siblingIndex];
+            currentIndex = currentIndex / 2;
+        }
+
+        return (pathIndices, pathElements);
+    }
+
 
     /**
      * @notice Compute new Merkle root by inserting a leaf at the current leaf index
