@@ -212,15 +212,6 @@ abstract contract PrivateVault {
     }
 
     /**
-     *   @dev Helper for Merkle Logic. Returns the last root
-     *   @param token The token address
-     */
-    function getLastRoot(address token) public view returns (bytes32) {
-        Vault storage vault = vaults[token];
-        return vault.currentRoot;
-    }
-
-    /**
      * @notice Helper for Merkle Logic. Check if a root is known (current or recent)
      * @param token The token address
      * @param _root The Merkle root to check
